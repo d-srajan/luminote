@@ -2,6 +2,8 @@
 
 An open-source, local-first note-taking app built with Tauri, React, and TypeScript. Designed as a fast, lightweight alternative to Obsidian with cloud sync capabilities.
 
+![Luminote Screenshot](assets/screenshot.png)
+
 ## Vision
 
 Luminote aims to be a modern note-taking tool that puts privacy and performance first:
@@ -35,7 +37,7 @@ Luminote aims to be a modern note-taking tool that puts privacy and performance 
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-username/luminote.git
+git clone https://github.com/d-srajan/luminote.git
 cd luminote
 
 # Install dependencies
