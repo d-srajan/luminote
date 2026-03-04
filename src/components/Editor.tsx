@@ -1,14 +1,47 @@
-import { useState } from "react";
-import { Eye, Edit3, FileText } from "lucide-react";
+import { useState, useEffect, useCallback } from "react";
+import { Eye, Edit3, FileText, Save } from "lucide-react";
 import Markdown from "react-markdown";
 import { useNoteStore } from "@/store/noteStore";
 
 export function Editor() {
-  const { activeNoteId, getActiveNote, updateNote } = useNoteStore();
+  const {
+    activeFilePath,
+    activeContent,
+    activeTitle,
+    dirty,
+    saving,
+    updateContent,
+    updateTitle,
+    saveActiveNote,
+  } = useNoteStore();
   const [preview, setPreview] = useState(false);
-  const note = getActiveNote();
 
-  if (!activeNoteId || !note) {
+  // Auto-save on Ctrl+S / Cmd+S
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "s") {
+        e.preventDefault();
+        saveActiveNote();
+      }
+    },
+    [saveActiveNote],
+  );
+
+  useEffect(() => {
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [handleKeyDown]);
+
+  // Auto-save after 2s of inactivity
+  useEffect(() => {
+    if (!dirty || !activeFilePath) return;
+    const timer = setTimeout(() => {
+      saveActiveNote();
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [activeContent, dirty, activeFilePath, saveActiveNote]);
+
+  if (!activeFilePath) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-3 text-[var(--color-text-muted)]">
         <FileText size={48} strokeWidth={1} />
@@ -28,32 +61,45 @@ export function Editor() {
       <header className="flex items-center gap-2 border-b border-[var(--color-border)] px-5 py-2.5">
         <input
           type="text"
-          value={note.title}
-          onChange={(e) => updateNote(note.id, { title: e.target.value })}
+          value={activeTitle}
+          onChange={(e) => updateTitle(e.target.value)}
           className="flex-1 bg-transparent text-lg font-semibold text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-muted)]"
           placeholder="Note title..."
         />
-        <div className="flex items-center gap-1 rounded-lg bg-[var(--color-bg-surface)] p-0.5">
-          <button
-            onClick={() => setPreview(false)}
-            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
-              !preview
-                ? "bg-[var(--color-bg-primary)] text-[var(--color-text-primary)] shadow-sm"
-                : "text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]"
-            }`}
-          >
-            <Edit3 size={14} />
-          </button>
-          <button
-            onClick={() => setPreview(true)}
-            className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
-              preview
-                ? "bg-[var(--color-bg-primary)] text-[var(--color-text-primary)] shadow-sm"
-                : "text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]"
-            }`}
-          >
-            <Eye size={14} />
-          </button>
+        <div className="flex items-center gap-2">
+          {dirty && (
+            <button
+              onClick={saveActiveNote}
+              disabled={saving}
+              className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-bg-surface)] hover:text-[var(--color-accent)]"
+              title="Save (Ctrl+S)"
+            >
+              <Save size={14} />
+              <span>{saving ? "Saving..." : "Save"}</span>
+            </button>
+          )}
+          <div className="flex items-center gap-1 rounded-lg bg-[var(--color-bg-surface)] p-0.5">
+            <button
+              onClick={() => setPreview(false)}
+              className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                !preview
+                  ? "bg-[var(--color-bg-primary)] text-[var(--color-text-primary)] shadow-sm"
+                  : "text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]"
+              }`}
+            >
+              <Edit3 size={14} />
+            </button>
+            <button
+              onClick={() => setPreview(true)}
+              className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                preview
+                  ? "bg-[var(--color-bg-primary)] text-[var(--color-text-primary)] shadow-sm"
+                  : "text-[var(--color-text-muted)] hover:text-[var(--color-text-secondary)]"
+              }`}
+            >
+              <Eye size={14} />
+            </button>
+          </div>
         </div>
       </header>
 
@@ -61,12 +107,12 @@ export function Editor() {
       <div className="flex-1 overflow-y-auto">
         {preview ? (
           <article className="prose prose-invert mx-auto max-w-3xl p-6 text-[var(--color-text-primary)]">
-            <Markdown>{note.content}</Markdown>
+            <Markdown>{activeContent}</Markdown>
           </article>
         ) : (
           <textarea
-            value={note.content}
-            onChange={(e) => updateNote(note.id, { content: e.target.value })}
+            value={activeContent}
+            onChange={(e) => updateContent(e.target.value)}
             className="h-full w-full resize-none bg-transparent p-6 font-mono text-sm leading-relaxed text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-muted)]"
             placeholder="Start writing in Markdown..."
           />

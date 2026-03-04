@@ -1,121 +1,174 @@
 import { create } from "zustand";
-import type { Note, Folder } from "@/types/note";
+import { fs } from "@/utils/fs";
+import { useVaultStore } from "@/store/vaultStore";
 
-interface NoteStore {
-  notes: Note[];
-  folders: Folder[];
-  activeNoteId: string | null;
+interface NoteState {
+  activeFilePath: string | null;
+  activeContent: string;
+  activeTitle: string;
+  dirty: boolean;
+  saving: boolean;
   searchQuery: string;
+  error: string | null;
 
-  addNote: (folderId?: string | null) => void;
-  updateNote: (id: string, updates: Partial<Pick<Note, "title" | "content">>) => void;
-  deleteNote: (id: string) => void;
-  setActiveNote: (id: string | null) => void;
-  getActiveNote: () => Note | undefined;
+  openNote: (path: string) => Promise<void>;
+  updateContent: (content: string) => void;
+  updateTitle: (title: string) => void;
+  saveActiveNote: () => Promise<void>;
+  createNote: (name: string, dirPath: string) => Promise<void>;
+  deleteNote: (path: string) => Promise<void>;
+  renameNote: (oldPath: string, newName: string) => Promise<void>;
+  createFolder: (path: string) => Promise<void>;
+  deleteFolder: (path: string) => Promise<void>;
+  renameFolder: (oldPath: string, newName: string) => Promise<void>;
   setSearchQuery: (query: string) => void;
-  getFilteredNotes: () => Note[];
-
-  addFolder: (parentId?: string | null) => void;
-  renameFolder: (id: string, name: string) => void;
-  deleteFolder: (id: string) => void;
-  toggleFolder: (id: string) => void;
+  clearError: () => void;
+  closeNote: () => void;
 }
 
-export const useNoteStore = create<NoteStore>((set, get) => ({
-  notes: [],
-  folders: [],
-  activeNoteId: null,
+function fileNameFromPath(path: string): string {
+  const parts = path.split(/[\\/]/);
+  const name = parts[parts.length - 1] ?? "";
+  return name.replace(/\.md$/, "");
+}
+
+function parentDir(path: string): string {
+  const parts = path.split(/[\\/]/);
+  parts.pop();
+  return parts.join("/");
+}
+
+export const useNoteStore = create<NoteState>((set, get) => ({
+  activeFilePath: null,
+  activeContent: "",
+  activeTitle: "",
+  dirty: false,
+  saving: false,
   searchQuery: "",
+  error: null,
 
-  addNote: (folderId = null) => {
-    const now = Date.now();
-    const note: Note = {
-      id: crypto.randomUUID(),
-      title: "Untitled",
-      content: "",
-      folderId,
-      createdAt: now,
-      updatedAt: now,
-    };
-    set((state) => ({
-      notes: [note, ...state.notes],
-      activeNoteId: note.id,
-    }));
+  openNote: async (path) => {
+    // Auto-save current note if dirty
+    const { dirty } = get();
+    if (dirty) {
+      await get().saveActiveNote();
+    }
+
+    try {
+      const content = await fs.readNote(path);
+      set({
+        activeFilePath: path,
+        activeContent: content,
+        activeTitle: fileNameFromPath(path),
+        dirty: false,
+        error: null,
+      });
+    } catch (e) {
+      set({ error: `Failed to open note: ${e}` });
+    }
   },
 
-  updateNote: (id, updates) => {
-    set((state) => ({
-      notes: state.notes.map((note) =>
-        note.id === id
-          ? { ...note, ...updates, updatedAt: Date.now() }
-          : note,
-      ),
-    }));
+  updateContent: (content) => {
+    set({ activeContent: content, dirty: true });
   },
 
-  deleteNote: (id) => {
-    set((state) => {
-      const remaining = state.notes.filter((n) => n.id !== id);
-      return {
-        notes: remaining,
-        activeNoteId:
-          state.activeNoteId === id
-            ? (remaining[0]?.id ?? null)
-            : state.activeNoteId,
-      };
-    });
+  updateTitle: (title) => {
+    set({ activeTitle: title, dirty: true });
   },
 
-  setActiveNote: (id) => set({ activeNoteId: id }),
+  saveActiveNote: async () => {
+    const { activeFilePath, activeContent, activeTitle, saving } = get();
+    if (!activeFilePath || saving) return;
 
-  getActiveNote: () => {
-    const { notes, activeNoteId } = get();
-    return notes.find((n) => n.id === activeNoteId);
+    set({ saving: true });
+    try {
+      // Handle rename if title changed
+      const currentName = fileNameFromPath(activeFilePath);
+      let savePath = activeFilePath;
+
+      if (activeTitle && activeTitle !== currentName) {
+        const dir = parentDir(activeFilePath);
+        const newPath = `${dir}/${activeTitle}.md`;
+        await fs.renameNote(activeFilePath, newPath);
+        savePath = newPath;
+      }
+
+      await fs.saveNote(savePath, activeContent);
+      set({ activeFilePath: savePath, dirty: false, saving: false });
+      useVaultStore.getState().refreshFiles();
+    } catch (e) {
+      set({ error: `Failed to save: ${e}`, saving: false });
+    }
+  },
+
+  createNote: async (name, dirPath) => {
+    try {
+      const newPath = await fs.createNote(name, dirPath);
+      await useVaultStore.getState().refreshFiles();
+      await get().openNote(newPath);
+    } catch (e) {
+      set({ error: `Failed to create note: ${e}` });
+    }
+  },
+
+  deleteNote: async (path) => {
+    try {
+      await fs.deleteNote(path);
+      const { activeFilePath } = get();
+      if (activeFilePath === path) {
+        set({ activeFilePath: null, activeContent: "", activeTitle: "", dirty: false });
+      }
+      useVaultStore.getState().refreshFiles();
+    } catch (e) {
+      set({ error: `Failed to delete note: ${e}` });
+    }
+  },
+
+  renameNote: async (oldPath, newName) => {
+    try {
+      const dir = parentDir(oldPath);
+      const newPath = `${dir}/${newName}.md`;
+      await fs.renameNote(oldPath, newPath);
+      const { activeFilePath } = get();
+      if (activeFilePath === oldPath) {
+        set({ activeFilePath: newPath, activeTitle: newName });
+      }
+      useVaultStore.getState().refreshFiles();
+    } catch (e) {
+      set({ error: `Failed to rename note: ${e}` });
+    }
+  },
+
+  createFolder: async (path) => {
+    try {
+      await fs.createFolder(path);
+      useVaultStore.getState().refreshFiles();
+    } catch (e) {
+      set({ error: `Failed to create folder: ${e}` });
+    }
+  },
+
+  deleteFolder: async (path) => {
+    try {
+      await fs.deleteFolder(path);
+      useVaultStore.getState().refreshFiles();
+    } catch (e) {
+      set({ error: `Failed to delete folder: ${e}` });
+    }
+  },
+
+  renameFolder: async (oldPath, newName) => {
+    try {
+      const dir = parentDir(oldPath);
+      const newPath = `${dir}/${newName}`;
+      await fs.renameFolder(oldPath, newPath);
+      useVaultStore.getState().refreshFiles();
+    } catch (e) {
+      set({ error: `Failed to rename folder: ${e}` });
+    }
   },
 
   setSearchQuery: (query) => set({ searchQuery: query }),
-
-  getFilteredNotes: () => {
-    const { notes, searchQuery } = get();
-    if (!searchQuery.trim()) return notes;
-    const q = searchQuery.toLowerCase();
-    return notes.filter(
-      (n) =>
-        n.title.toLowerCase().includes(q) ||
-        n.content.toLowerCase().includes(q),
-    );
-  },
-
-  addFolder: (parentId = null) => {
-    const folder: Folder = {
-      id: crypto.randomUUID(),
-      name: "New Folder",
-      parentId,
-      isOpen: true,
-    };
-    set((state) => ({ folders: [...state.folders, folder] }));
-  },
-
-  renameFolder: (id, name) => {
-    set((state) => ({
-      folders: state.folders.map((f) => (f.id === id ? { ...f, name } : f)),
-    }));
-  },
-
-  deleteFolder: (id) => {
-    set((state) => ({
-      folders: state.folders.filter((f) => f.id !== id),
-      notes: state.notes.map((n) =>
-        n.folderId === id ? { ...n, folderId: null } : n,
-      ),
-    }));
-  },
-
-  toggleFolder: (id) => {
-    set((state) => ({
-      folders: state.folders.map((f) =>
-        f.id === id ? { ...f, isOpen: !f.isOpen } : f,
-      ),
-    }));
-  },
+  clearError: () => set({ error: null }),
+  closeNote: () => set({ activeFilePath: null, activeContent: "", activeTitle: "", dirty: false }),
 }));

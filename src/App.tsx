@@ -1,10 +1,15 @@
+import { useEffect } from "react";
 import { Navbar } from "@/components/Navbar";
 import { FileExplorer } from "@/components/FileExplorer";
 import { Editor } from "@/components/Editor";
 import { RightSidebar } from "@/components/RightSidebar";
 import { ResizeHandle } from "@/components/ResizeHandle";
+import { VaultPicker } from "@/components/VaultPicker";
 import { useLayoutStore } from "@/store/layoutStore";
+import { useVaultStore } from "@/store/vaultStore";
+import { useNoteStore } from "@/store/noteStore";
 import { useResize } from "@/hooks/useResize";
+import { fs } from "@/utils/fs";
 
 function App() {
   const {
@@ -15,6 +20,18 @@ function App() {
     setLeftSidebarWidth,
     setRightSidebarWidth,
   } = useLayoutStore();
+
+  const { vaultPath, loadVault } = useVaultStore();
+  const noteError = useNoteStore((s) => s.error);
+  const clearNoteError = useNoteStore((s) => s.clearError);
+
+  // Auto-load saved vault on startup
+  useEffect(() => {
+    const saved = fs.getSavedVaultPath();
+    if (saved) {
+      loadVault(saved);
+    }
+  }, [loadVault]);
 
   const leftResize = useResize({
     direction: "left",
@@ -28,19 +45,31 @@ function App() {
     initialWidth: rightSidebarWidth,
   });
 
+  if (!vaultPath) {
+    return <VaultPicker />;
+  }
+
   return (
     <div className="flex h-screen w-screen flex-col">
       <Navbar />
+
+      {/* Error toast */}
+      {noteError && (
+        <div className="flex items-center justify-between border-b border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-400">
+          <span>{noteError}</span>
+          <button onClick={clearNoteError} className="text-xs underline">
+            dismiss
+          </button>
+        </div>
+      )}
+
       <div className="flex min-h-0 flex-1">
         {/* Left sidebar */}
         <aside
           className="shrink-0 overflow-hidden bg-[var(--color-bg-secondary)] transition-[width] duration-200 ease-in-out"
           style={{ width: leftSidebarOpen ? leftSidebarWidth : 0 }}
         >
-          <div
-            className="h-full"
-            style={{ width: leftSidebarWidth }}
-          >
+          <div className="h-full" style={{ width: leftSidebarWidth }}>
             <FileExplorer />
           </div>
         </aside>
@@ -63,10 +92,7 @@ function App() {
           className="shrink-0 overflow-hidden bg-[var(--color-bg-secondary)] transition-[width] duration-200 ease-in-out"
           style={{ width: rightSidebarOpen ? rightSidebarWidth : 0 }}
         >
-          <div
-            className="h-full"
-            style={{ width: rightSidebarWidth }}
-          >
+          <div className="h-full" style={{ width: rightSidebarWidth }}>
             <RightSidebar />
           </div>
         </aside>
