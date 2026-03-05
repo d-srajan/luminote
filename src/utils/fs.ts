@@ -144,6 +144,19 @@ export const fs = {
     return tauriInvoke("delete_folder", { path });
   },
 
+  async moveFile(sourcePath: string, destDir: string): Promise<string> {
+    const name = sourcePath.split("/").pop() ?? "";
+    const newPath = `${destDir}/${name}`;
+    if (!isTauri) {
+      const content = memoryFs.get(sourcePath) ?? "";
+      memoryFs.delete(sourcePath);
+      memoryFs.set(newPath, content);
+      return newPath;
+    }
+    await tauriInvoke("rename_note", { oldPath: sourcePath, newPath });
+    return newPath;
+  },
+
   async renameFolder(oldPath: string, newPath: string): Promise<void> {
     if (!isTauri) {
       const oldPrefix = oldPath.endsWith("/") ? oldPath : `${oldPath}/`;

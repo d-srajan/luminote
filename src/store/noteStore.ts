@@ -21,6 +21,7 @@ interface NoteState {
   createFolder: (path: string) => Promise<void>;
   deleteFolder: (path: string) => Promise<void>;
   renameFolder: (oldPath: string, newName: string) => Promise<void>;
+  moveFile: (sourcePath: string, destDir: string) => Promise<void>;
   setSearchQuery: (query: string) => void;
   clearError: () => void;
   closeNote: () => void;
@@ -165,6 +166,19 @@ export const useNoteStore = create<NoteState>((set, get) => ({
       useVaultStore.getState().refreshFiles();
     } catch (e) {
       set({ error: `Failed to rename folder: ${e}` });
+    }
+  },
+
+  moveFile: async (sourcePath, destDir) => {
+    try {
+      const newPath = await fs.moveFile(sourcePath, destDir);
+      const { activeFilePath } = get();
+      if (activeFilePath === sourcePath) {
+        set({ activeFilePath: newPath, activeTitle: fileNameFromPath(newPath) });
+      }
+      useVaultStore.getState().refreshFiles();
+    } catch (e) {
+      set({ error: `Failed to move file: ${e}` });
     }
   },
 
