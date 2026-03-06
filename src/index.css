@@ -93,3 +93,17 @@ body {
 .prose hr {
   border-color: var(--color-border);
 }
+
+/* CodeMirror overrides */
+.cm-editor {
+  height: 100%;
+  outline: none !important;
+}
+
+.cm-scroller {
+  overflow: auto;
+}
+
+.cm-focused {
+  outline: none !important;
+}
