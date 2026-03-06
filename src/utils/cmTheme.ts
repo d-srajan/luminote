@@ -1,6 +1,7 @@
-import { EditorView } from "@codemirror/view";
+import { EditorView, ViewPlugin, Decoration, type DecorationSet, type ViewUpdate } from "@codemirror/view";
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { tags } from "@lezer/highlight";
+import { RangeSetBuilder } from "@codemirror/state";
 
 const luminoteEditorTheme = EditorView.theme(
   {
@@ -62,6 +63,26 @@ const luminoteEditorTheme = EditorView.theme(
       color: "#cdd6f4",
       border: "1px solid #45475a",
       borderRadius: "6px",
+    },
+    ".cm-tooltip-autocomplete": {
+      backgroundColor: "#313244",
+      border: "1px solid #45475a",
+      borderRadius: "6px",
+      padding: "4px 0",
+    },
+    ".cm-tooltip-autocomplete ul li": {
+      padding: "4px 12px",
+      fontSize: "13px",
+    },
+    ".cm-tooltip-autocomplete ul li[aria-selected]": {
+      backgroundColor: "rgba(137, 180, 250, 0.15)",
+      color: "#cdd6f4",
+    },
+    ".cm-wikilink": {
+      color: "#89b4fa",
+      textDecoration: "underline",
+      textDecorationStyle: "dotted",
+      textUnderlineOffset: "2px",
     },
     ".cm-panels": {
       backgroundColor: "#181825",
@@ -125,6 +146,39 @@ const luminoteHighlightStyle = HighlightStyle.define([
   { tag: tags.propertyName, color: "#89b4fa" },
   { tag: tags.definition(tags.variableName), color: "#89b4fa" },
 ]);
+
+// ─── WikiLink decorations ───
+
+const WIKILINK_RE = /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g;
+const wikiLinkMark = Decoration.mark({ class: "cm-wikilink" });
+
+function buildWikiLinkDecorations(view: EditorView): DecorationSet {
+  const builder = new RangeSetBuilder<Decoration>();
+  for (const { from, to } of view.visibleRanges) {
+    const text = view.state.sliceDoc(from, to);
+    WIKILINK_RE.lastIndex = 0;
+    let match: RegExpExecArray | null;
+    while ((match = WIKILINK_RE.exec(text)) !== null) {
+      builder.add(from + match.index, from + match.index + match[0].length, wikiLinkMark);
+    }
+  }
+  return builder.finish();
+}
+
+export const wikiLinkDecorations = ViewPlugin.fromClass(
+  class {
+    decorations: DecorationSet;
+    constructor(view: EditorView) {
+      this.decorations = buildWikiLinkDecorations(view);
+    }
+    update(update: ViewUpdate) {
+      if (update.docChanged || update.viewportChanged) {
+        this.decorations = buildWikiLinkDecorations(update.view);
+      }
+    }
+  },
+  { decorations: (v) => v.decorations },
+);
 
 export const luminoteTheme = [
   luminoteEditorTheme,

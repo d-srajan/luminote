@@ -1,14 +1,18 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, type ReactNode } from "react";
 import { Eye, Edit3, FileText } from "lucide-react";
 import Markdown from "react-markdown";
 import { useNoteStore } from "@/store/noteStore";
+import { useVaultStore } from "@/store/vaultStore";
+import { resolveWikiLink, flattenFiles } from "@/utils/wikilinks";
 
 import { EditorState } from "@codemirror/state";
 import { EditorView, keymap, lineNumbers, highlightActiveLine, drawSelection, dropCursor } from "@codemirror/view";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
 import { bracketMatching, indentOnInput } from "@codemirror/language";
-import { luminoteTheme } from "@/utils/cmTheme";
+import { autocompletion, type CompletionContext } from "@codemirror/autocomplete";
+import { luminoteTheme, wikiLinkDecorations } from "@/utils/cmTheme";
+import type { FileEntry } from "@/types/note";
 
 // ─── Markdown formatting helpers ───
 
@@ -44,17 +48,106 @@ function insertLink(view: EditorView) {
   return true;
 }
 
+// ─── WikiLink autocomplete ───
+
+function wikiLinkCompletion(fileTree: FileEntry[]) {
+  return (context: CompletionContext) => {
+    const match = context.matchBefore(/\[\[([^\]]*)$/);
+    if (!match) return null;
+
+    const query = match.text.slice(2).toLowerCase();
+    const notes = flattenFiles(fileTree);
+
+    return {
+      from: match.from,
+      filter: false,
+      options: notes
+        .filter((n) => n.name.replace(/\.md$/, "").toLowerCase().includes(query))
+        .map((n) => {
+          const label = n.name.replace(/\.md$/, "");
+          return {
+            label,
+            apply: `[[${label}]]`,
+          };
+        }),
+    };
+  };
+}
+
+// ─── WikiLink preview rendering ───
+
+const WIKILINK_RE = /\[\[([^\]|]+)(?:\|([^\]]+))?\]\]/g;
+
+function WikiLinkText({
+  text,
+  onNavigate,
+}: {
+  text: string;
+  onNavigate: (name: string) => void;
+}) {
+  const parts: ReactNode[] = [];
+  let lastIndex = 0;
+  WIKILINK_RE.lastIndex = 0;
+
+  let match: RegExpExecArray | null;
+  while ((match = WIKILINK_RE.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(text.slice(lastIndex, match.index));
+    }
+    const name = match[1]!.trim();
+    const display = match[2]?.trim() || name;
+    parts.push(
+      <button
+        key={`${match.index}-${name}`}
+        onClick={() => onNavigate(name)}
+        className="wikilink"
+      >
+        {display}
+      </button>,
+    );
+    lastIndex = match.index + match[0].length;
+  }
+
+  if (lastIndex < text.length) {
+    parts.push(text.slice(lastIndex));
+  }
+
+  return <>{parts}</>;
+}
+
+function processChildren(
+  children: ReactNode,
+  onNavigate: (name: string) => void,
+): ReactNode {
+  if (typeof children === "string") {
+    if (children.includes("[[")) {
+      return <WikiLinkText text={children} onNavigate={onNavigate} />;
+    }
+    return children;
+  }
+  if (Array.isArray(children)) {
+    return children.map((child, i) => {
+      if (typeof child === "string" && child.includes("[[")) {
+        return <WikiLinkText key={i} text={child} onNavigate={onNavigate} />;
+      }
+      return child;
+    });
+  }
+  return children;
+}
+
 // ─── CodeMirror inner component ───
-// Only mounted when activeFilePath is set, so the ref is always available.
 
 function CodeMirrorEditor({
   content,
   filePath,
+  fileTree,
   onContentChange,
   onSave,
 }: {
   content: string;
   filePath: string;
+  fileTree: FileEntry[];
   onContentChange: (content: string) => void;
   onSave: () => void;
 }) {
@@ -62,33 +155,21 @@ function CodeMirrorEditor({
   const viewRef = useRef<EditorView | null>(null);
   const skipUpdateRef = useRef(false);
 
-  // Stable refs for callbacks
   const onContentChangeRef = useRef(onContentChange);
   const onSaveRef = useRef(onSave);
+  const fileTreeRef = useRef(fileTree);
   onContentChangeRef.current = onContentChange;
   onSaveRef.current = onSave;
+  fileTreeRef.current = fileTree;
 
-  // Initialize CodeMirror
   useEffect(() => {
     if (!editorRef.current) return;
 
     const customKeymap = keymap.of([
-      {
-        key: "Mod-s",
-        run: () => { onSaveRef.current(); return true; },
-      },
-      {
-        key: "Mod-b",
-        run: (v) => wrapSelection(v, "**", "**"),
-      },
-      {
-        key: "Mod-i",
-        run: (v) => wrapSelection(v, "*", "*"),
-      },
-      {
-        key: "Mod-k",
-        run: (v) => insertLink(v),
-      },
+      { key: "Mod-s", run: () => { onSaveRef.current(); return true; } },
+      { key: "Mod-b", run: (v) => wrapSelection(v, "**", "**") },
+      { key: "Mod-i", run: (v) => wrapSelection(v, "*", "*") },
+      { key: "Mod-k", run: (v) => insertLink(v) },
     ]);
 
     const updateListener = EditorView.updateListener.of((update) => {
@@ -112,6 +193,10 @@ function CodeMirrorEditor({
         EditorView.lineWrapping,
         keymap.of([...defaultKeymap, ...historyKeymap]),
         ...luminoteTheme,
+        wikiLinkDecorations,
+        autocompletion({
+          override: [(ctx) => wikiLinkCompletion(fileTreeRef.current)(ctx)],
+        }),
         updateListener,
       ],
     });
@@ -123,15 +208,12 @@ function CodeMirrorEditor({
       view.destroy();
       viewRef.current = null;
     };
-    // Re-create when component mounts (content is initial doc)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Sync content when switching to a different note
   useEffect(() => {
     const view = viewRef.current;
     if (!view) return;
-
     const currentDoc = view.state.doc.toString();
     if (currentDoc !== content) {
       skipUpdateRef.current = true;
@@ -140,7 +222,6 @@ function CodeMirrorEditor({
       });
       skipUpdateRef.current = false;
     }
-    // Only sync when the file path changes (new note opened)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filePath]);
 
@@ -159,8 +240,11 @@ export function Editor() {
     updateContent,
     updateTitle,
     saveActiveNote,
+    openNote,
+    createNote,
   } = useNoteStore();
 
+  const { vaultPath, fileTree } = useVaultStore();
   const [preview, setPreview] = useState(false);
 
   // Auto-save after 2s of inactivity
@@ -189,6 +273,50 @@ export function Editor() {
       ? "text-amber-400"
       : "text-emerald-400";
 
+  // WikiLink navigation handler
+  const handleWikiLinkNavigate = (name: string) => {
+    const resolved = resolveWikiLink(name, fileTree);
+    if (resolved) {
+      openNote(resolved);
+    } else if (vaultPath) {
+      const shouldCreate = window.confirm(
+        `"${name}" doesn't exist yet. Create it?`,
+      );
+      if (shouldCreate) {
+        createNote(name, vaultPath);
+      }
+    }
+  };
+
+  // react-markdown components with WikiLink support
+  const markdownComponents = useMemo(
+    () => ({
+      p: ({ children }: { children?: ReactNode }) => (
+        <p>{processChildren(children, handleWikiLinkNavigate)}</p>
+      ),
+      li: ({ children }: { children?: ReactNode }) => (
+        <li>{processChildren(children, handleWikiLinkNavigate)}</li>
+      ),
+      h1: ({ children }: { children?: ReactNode }) => (
+        <h1>{processChildren(children, handleWikiLinkNavigate)}</h1>
+      ),
+      h2: ({ children }: { children?: ReactNode }) => (
+        <h2>{processChildren(children, handleWikiLinkNavigate)}</h2>
+      ),
+      h3: ({ children }: { children?: ReactNode }) => (
+        <h3>{processChildren(children, handleWikiLinkNavigate)}</h3>
+      ),
+      td: ({ children }: { children?: ReactNode }) => (
+        <td>{processChildren(children, handleWikiLinkNavigate)}</td>
+      ),
+      blockquote: ({ children }: { children?: ReactNode }) => (
+        <blockquote>{processChildren(children, handleWikiLinkNavigate)}</blockquote>
+      ),
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [fileTree, vaultPath],
+  );
+
   // Empty state
   if (!activeFilePath) {
     return (
@@ -216,7 +344,6 @@ export function Editor() {
           placeholder="Note title..."
         />
         <div className="flex items-center gap-3">
-          {/* Save status */}
           <span className={`flex items-center gap-1.5 text-xs ${statusColor}`}>
             <span
               className={`inline-block h-1.5 w-1.5 rounded-full ${
@@ -229,8 +356,6 @@ export function Editor() {
             />
             {saveStatus}
           </span>
-
-          {/* Edit / Preview toggle */}
           <div className="flex items-center gap-1 rounded-lg bg-[var(--color-bg-surface)] p-0.5">
             <button
               onClick={() => setPreview(false)}
@@ -261,7 +386,7 @@ export function Editor() {
         {preview ? (
           <div className="h-full overflow-y-auto">
             <article className="prose prose-invert mx-auto max-w-3xl p-6 text-[var(--color-text-primary)]">
-              <Markdown>{activeContent}</Markdown>
+              <Markdown components={markdownComponents}>{activeContent}</Markdown>
             </article>
           </div>
         ) : (
@@ -269,6 +394,7 @@ export function Editor() {
             key={activeFilePath}
             content={activeContent}
             filePath={activeFilePath}
+            fileTree={fileTree}
             onContentChange={updateContent}
             onSave={saveActiveNote}
           />

@@ -107,3 +107,23 @@ body {
 .cm-focused {
   outline: none !important;
 }
+
+/* WikiLink styles (preview mode) */
+.wikilink {
+  color: var(--color-accent);
+  cursor: pointer;
+  text-decoration: none;
+  border: none;
+  background: none;
+  padding: 0;
+  font: inherit;
+  text-decoration-line: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 2px;
+  transition: color 0.15s;
+}
+
+.wikilink:hover {
+  color: var(--color-accent-hover);
+  text-decoration-style: solid;
+}
