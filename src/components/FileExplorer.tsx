@@ -11,6 +11,7 @@ import {
   RefreshCw,
   Pencil,
   Copy,
+  X,
 } from "lucide-react";
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useVaultStore } from "@/store/vaultStore";
@@ -60,6 +61,20 @@ export function FileExplorer() {
   const [openFolders, setOpenFolders] = useState<Set<string>>(new Set());
   const [dragOverPath, setDragOverPath] = useState<string | null>(null);
   const navRef = useRef<HTMLElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  // ─── Global Cmd/Ctrl+P shortcut ───
+  useEffect(() => {
+    function handleGlobalKey(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key === "p") {
+        e.preventDefault();
+        searchRef.current?.focus();
+        searchRef.current?.select();
+      }
+    }
+    window.addEventListener("keydown", handleGlobalKey);
+    return () => window.removeEventListener("keydown", handleGlobalKey);
+  }, []);
 
   // Auto-expand all folders on first load
   useEffect(() => {
@@ -302,12 +317,32 @@ export function FileExplorer() {
         <div className="flex items-center gap-1.5 rounded-md bg-[var(--color-bg-surface)] px-2.5 py-1.5">
           <Search size={14} className="shrink-0 text-[var(--color-text-muted)]" />
           <input
+            ref={searchRef}
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search notes..."
+            onKeyDown={(e) => {
+              if (e.key === "Escape") {
+                setSearchQuery("");
+                searchRef.current?.blur();
+                navRef.current?.focus();
+              }
+            }}
+            placeholder="Search notes…  ⌘P"
             className="w-full bg-transparent text-xs text-[var(--color-text-primary)] outline-none placeholder:text-[var(--color-text-muted)]"
           />
+          {searchQuery && (
+            <button
+              onClick={() => {
+                setSearchQuery("");
+                searchRef.current?.focus();
+              }}
+              className="shrink-0 rounded-sm p-0.5 text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-bg-primary)] hover:text-[var(--color-text-secondary)]"
+              title="Clear search"
+            >
+              <X size={12} />
+            </button>
+          )}
         </div>
       </div>
 
@@ -367,6 +402,7 @@ export function FileExplorer() {
             renamingPath={renamingPath}
             openFolders={openFolders}
             dragOverPath={dragOverPath}
+            searchQuery={searchQuery}
             onOpenNote={openNote}
             onToggleFolder={toggleFolder}
             onContextMenu={handleContextMenu}
@@ -452,6 +488,7 @@ interface TreeNodeProps {
   renamingPath: string | null;
   openFolders: Set<string>;
   dragOverPath: string | null;
+  searchQuery: string;
   onOpenNote: (path: string) => void;
   onToggleFolder: (path: string) => void;
   onContextMenu: (e: React.MouseEvent, entry: FileEntry) => void;
@@ -472,6 +509,7 @@ function FileTreeNode({
   renamingPath,
   openFolders,
   dragOverPath,
+  searchQuery,
   onOpenNote,
   onToggleFolder,
   onContextMenu,
@@ -522,7 +560,7 @@ function FileTreeNode({
             />
           ) : (
             <span className="min-w-0 flex-1 truncate text-xs font-medium">
-              {entry.name}
+              <HighlightMatch text={entry.name} query={searchQuery} />
             </span>
           )}
           <span className="mr-0.5 text-[10px] text-[var(--color-text-muted)]">
@@ -540,6 +578,7 @@ function FileTreeNode({
                 renamingPath={renamingPath}
                 openFolders={openFolders}
                 dragOverPath={dragOverPath}
+                searchQuery={searchQuery}
                 onOpenNote={onOpenNote}
                 onToggleFolder={onToggleFolder}
                 onContextMenu={onContextMenu}
@@ -588,10 +627,36 @@ function FileTreeNode({
         />
       ) : (
         <span className="min-w-0 flex-1 truncate text-xs font-medium">
-          {displayName}
+          <HighlightMatch text={displayName} query={searchQuery} />
         </span>
       )}
     </div>
+  );
+}
+
+// ─── Highlight match ───
+
+function HighlightMatch({ text, query }: { text: string; query: string }) {
+  if (!query.trim()) return <>{text}</>;
+
+  const regex = new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")})`, "gi");
+  const parts = text.split(regex);
+
+  return (
+    <>
+      {parts.map((part, i) =>
+        regex.test(part) ? (
+          <mark
+            key={i}
+            className="rounded-sm bg-[var(--color-accent)]/25 text-[var(--color-accent)] px-px"
+          >
+            {part}
+          </mark>
+        ) : (
+          <span key={i}>{part}</span>
+        ),
+      )}
+    </>
   );
 }
 
