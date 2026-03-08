@@ -11,7 +11,8 @@ import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { markdown } from "@codemirror/lang-markdown";
 import { bracketMatching, indentOnInput } from "@codemirror/language";
 import { autocompletion, type CompletionContext } from "@codemirror/autocomplete";
-import { luminoteTheme, wikiLinkDecorations } from "@/utils/cmTheme";
+import { luminoteTheme, wikiLinkDecorations, createEditorFontTheme } from "@/utils/cmTheme";
+import { useSettingsStore } from "@/store/settingsStore";
 import type { FileEntry } from "@/types/note";
 
 // ─── Markdown formatting helpers ───
@@ -144,12 +145,20 @@ function CodeMirrorEditor({
   fileTree,
   onContentChange,
   onSave,
+  fontSize,
+  fontFamily,
+  lineHeight,
+  showLineNumbers,
 }: {
   content: string;
   filePath: string;
   fileTree: FileEntry[];
   onContentChange: (content: string) => void;
   onSave: () => void;
+  fontSize: number;
+  fontFamily: string;
+  lineHeight: number;
+  showLineNumbers: boolean;
 }) {
   const editorRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<EditorView | null>(null);
@@ -178,27 +187,33 @@ function CodeMirrorEditor({
       }
     });
 
+    const extensions = [
+      customKeymap,
+      highlightActiveLine(),
+      drawSelection(),
+      dropCursor(),
+      history(),
+      bracketMatching(),
+      indentOnInput(),
+      markdown(),
+      EditorView.lineWrapping,
+      keymap.of([...defaultKeymap, ...historyKeymap]),
+      ...luminoteTheme,
+      createEditorFontTheme({ fontSize, fontFamily, lineHeight }),
+      wikiLinkDecorations,
+      autocompletion({
+        override: [(ctx) => wikiLinkCompletion(fileTreeRef.current)(ctx)],
+      }),
+      updateListener,
+    ];
+
+    if (showLineNumbers) {
+      extensions.splice(1, 0, lineNumbers());
+    }
+
     const state = EditorState.create({
       doc: content,
-      extensions: [
-        customKeymap,
-        lineNumbers(),
-        highlightActiveLine(),
-        drawSelection(),
-        dropCursor(),
-        history(),
-        bracketMatching(),
-        indentOnInput(),
-        markdown(),
-        EditorView.lineWrapping,
-        keymap.of([...defaultKeymap, ...historyKeymap]),
-        ...luminoteTheme,
-        wikiLinkDecorations,
-        autocompletion({
-          override: [(ctx) => wikiLinkCompletion(fileTreeRef.current)(ctx)],
-        }),
-        updateListener,
-      ],
+      extensions,
     });
 
     const view = new EditorView({ state, parent: editorRef.current });
@@ -245,16 +260,23 @@ export function Editor() {
   } = useNoteStore();
 
   const { vaultPath, fileTree } = useVaultStore();
+  const {
+    editorFontSize,
+    editorFontFamily,
+    editorLineHeight,
+    showLineNumbers,
+    autoSaveInterval,
+  } = useSettingsStore();
   const [preview, setPreview] = useState(false);
 
-  // Auto-save after 2s of inactivity
+  // Auto-save after configured interval of inactivity
   useEffect(() => {
     if (!dirty || !activeFilePath) return;
     const timer = setTimeout(() => {
       saveActiveNote();
-    }, 2000);
+    }, autoSaveInterval);
     return () => clearTimeout(timer);
-  }, [activeContent, dirty, activeFilePath, saveActiveNote]);
+  }, [activeContent, dirty, activeFilePath, saveActiveNote, autoSaveInterval]);
 
   // Word & character counts
   const { words, chars } = useMemo(() => {
@@ -391,12 +413,16 @@ export function Editor() {
           </div>
         ) : (
           <CodeMirrorEditor
-            key={activeFilePath}
+            key={`${activeFilePath}-${editorFontSize}-${editorFontFamily}-${editorLineHeight}-${showLineNumbers}`}
             content={activeContent}
             filePath={activeFilePath}
             fileTree={fileTree}
             onContentChange={updateContent}
             onSave={saveActiveNote}
+            fontSize={editorFontSize}
+            fontFamily={editorFontFamily}
+            lineHeight={editorLineHeight}
+            showLineNumbers={showLineNumbers}
           />
         )}
       </div>

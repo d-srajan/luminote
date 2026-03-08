@@ -1,6 +1,8 @@
 @import "tailwindcss";
 
-:root {
+/* Dark theme (default) */
+:root,
+[data-theme="dark"] {
   --color-bg-primary: #1e1e2e;
   --color-bg-secondary: #181825;
   --color-bg-surface: #313244;
@@ -10,6 +12,19 @@
   --color-accent: #89b4fa;
   --color-accent-hover: #74c7ec;
   --color-border: #45475a;
+}
+
+/* Light theme (Catppuccin Latte) */
+[data-theme="light"] {
+  --color-bg-primary: #eff1f5;
+  --color-bg-secondary: #e6e9ef;
+  --color-bg-surface: #ccd0da;
+  --color-text-primary: #4c4f69;
+  --color-text-secondary: #5c5f77;
+  --color-text-muted: #9ca0b0;
+  --color-accent: #1e66f5;
+  --color-accent-hover: #2a6ef5;
+  --color-border: #bcc0cc;
 }
 
 * {

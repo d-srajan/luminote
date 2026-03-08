@@ -1,11 +1,26 @@
+import { useEffect } from "react";
 import { PanelLeft, PanelRight, Settings, FolderOpen } from "lucide-react";
 import { useLayoutStore } from "@/store/layoutStore";
 import { useVaultStore } from "@/store/vaultStore";
+import { useSettingsStore } from "@/store/settingsStore";
 
 export function Navbar() {
   const { leftSidebarOpen, rightSidebarOpen, toggleLeftSidebar, toggleRightSidebar } =
     useLayoutStore();
   const { vaultPath, openVault } = useVaultStore();
+  const openSettings = useSettingsStore((s) => s.openSettings);
+
+  // Global Cmd/Ctrl+, shortcut
+  useEffect(() => {
+    function handleKey(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key === ",") {
+        e.preventDefault();
+        openSettings();
+      }
+    }
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [openSettings]);
 
   const vaultName = vaultPath?.split(/[\\/]/).pop() ?? "";
 
@@ -55,8 +70,9 @@ export function Navbar() {
           <PanelRight size={18} />
         </button>
         <button
+          onClick={() => openSettings()}
           className="rounded-md p-1.5 text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-bg-surface)] hover:text-[var(--color-text-secondary)]"
-          title="Settings"
+          title="Settings (⌘,)"
         >
           <Settings size={18} />
         </button>

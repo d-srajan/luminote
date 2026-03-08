@@ -2,47 +2,70 @@ import { EditorView, ViewPlugin, Decoration, type DecorationSet, type ViewUpdate
 import { HighlightStyle, syntaxHighlighting } from "@codemirror/language";
 import { tags } from "@lezer/highlight";
 import { RangeSetBuilder } from "@codemirror/state";
+import type { Extension } from "@codemirror/state";
+
+// ─── Configurable theme ───
+
+export interface EditorThemeOptions {
+  fontSize?: number;
+  fontFamily?: string;
+  lineHeight?: number;
+}
+
+export function createEditorFontTheme(opts: EditorThemeOptions): Extension {
+  return EditorView.theme({
+    "&": {
+      fontSize: `${opts.fontSize ?? 14}px`,
+      fontFamily:
+        opts.fontFamily ??
+        '"JetBrains Mono", "Fira Code", "SF Mono", Monaco, "Cascadia Code", monospace',
+    },
+    ".cm-content": {
+      lineHeight: String(opts.lineHeight ?? 1.6),
+    },
+  });
+}
 
 const luminoteEditorTheme = EditorView.theme(
   {
     "&": {
-      backgroundColor: "#1e1e2e",
-      color: "#cdd6f4",
+      backgroundColor: "var(--color-bg-primary)",
+      color: "var(--color-text-primary)",
       fontSize: "14px",
       fontFamily:
         '"JetBrains Mono", "Fira Code", "SF Mono", Monaco, "Cascadia Code", monospace',
     },
     ".cm-content": {
       padding: "16px 0",
-      caretColor: "#89b4fa",
+      caretColor: "var(--color-accent)",
     },
     ".cm-cursor, .cm-dropCursor": {
-      borderLeftColor: "#89b4fa",
+      borderLeftColor: "var(--color-accent)",
       borderLeftWidth: "2px",
     },
     "&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection":
       {
-        backgroundColor: "rgba(137, 180, 250, 0.2)",
+        backgroundColor: "color-mix(in srgb, var(--color-accent) 20%, transparent)",
       },
     ".cm-activeLine": {
-      backgroundColor: "rgba(49, 50, 68, 0.4)",
+      backgroundColor: "color-mix(in srgb, var(--color-bg-surface) 40%, transparent)",
     },
     ".cm-gutters": {
-      backgroundColor: "#181825",
-      color: "#6c7086",
-      borderRight: "1px solid #45475a",
+      backgroundColor: "var(--color-bg-secondary)",
+      color: "var(--color-text-muted)",
+      borderRight: "1px solid var(--color-border)",
       paddingRight: "4px",
     },
     ".cm-activeLineGutter": {
       backgroundColor: "transparent",
-      color: "#cdd6f4",
+      color: "var(--color-text-primary)",
     },
     ".cm-lineNumbers .cm-gutterElement": {
       padding: "0 8px 0 16px",
       minWidth: "3em",
     },
     "&.cm-focused .cm-matchingBracket": {
-      backgroundColor: "rgba(137, 180, 250, 0.3)",
+      backgroundColor: "color-mix(in srgb, var(--color-accent) 30%, transparent)",
       outline: "none",
     },
     ".cm-searchMatch": {
@@ -52,21 +75,21 @@ const luminoteEditorTheme = EditorView.theme(
       backgroundColor: "rgba(249, 226, 175, 0.5)",
     },
     ".cm-foldPlaceholder": {
-      backgroundColor: "#313244",
-      color: "#a6adc8",
+      backgroundColor: "var(--color-bg-surface)",
+      color: "var(--color-text-secondary)",
       border: "none",
       padding: "0 4px",
       borderRadius: "3px",
     },
     ".cm-tooltip": {
-      backgroundColor: "#313244",
-      color: "#cdd6f4",
-      border: "1px solid #45475a",
+      backgroundColor: "var(--color-bg-surface)",
+      color: "var(--color-text-primary)",
+      border: "1px solid var(--color-border)",
       borderRadius: "6px",
     },
     ".cm-tooltip-autocomplete": {
-      backgroundColor: "#313244",
-      border: "1px solid #45475a",
+      backgroundColor: "var(--color-bg-surface)",
+      border: "1px solid var(--color-border)",
       borderRadius: "6px",
       padding: "4px 0",
     },
@@ -75,21 +98,20 @@ const luminoteEditorTheme = EditorView.theme(
       fontSize: "13px",
     },
     ".cm-tooltip-autocomplete ul li[aria-selected]": {
-      backgroundColor: "rgba(137, 180, 250, 0.15)",
-      color: "#cdd6f4",
+      backgroundColor: "color-mix(in srgb, var(--color-accent) 15%, transparent)",
+      color: "var(--color-text-primary)",
     },
     ".cm-wikilink": {
-      color: "#89b4fa",
+      color: "var(--color-accent)",
       textDecoration: "underline",
       textDecorationStyle: "dotted",
       textUnderlineOffset: "2px",
     },
     ".cm-panels": {
-      backgroundColor: "#181825",
-      color: "#cdd6f4",
+      backgroundColor: "var(--color-bg-secondary)",
+      color: "var(--color-text-primary)",
     },
   },
-  { dark: true },
 );
 
 const luminoteHighlightStyle = HighlightStyle.define([

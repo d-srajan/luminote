@@ -5,9 +5,11 @@ import { Editor } from "@/components/Editor";
 import { RightSidebar } from "@/components/RightSidebar";
 import { ResizeHandle } from "@/components/ResizeHandle";
 import { VaultPicker } from "@/components/VaultPicker";
+import { SettingsModal } from "@/components/SettingsModal";
 import { useLayoutStore } from "@/store/layoutStore";
 import { useVaultStore } from "@/store/vaultStore";
 import { useNoteStore } from "@/store/noteStore";
+import { useSettingsStore } from "@/store/settingsStore";
 import { useResize } from "@/hooks/useResize";
 import { fs } from "@/utils/fs";
 
@@ -24,6 +26,27 @@ function App() {
   const { vaultPath, loadVault } = useVaultStore();
   const noteError = useNoteStore((s) => s.error);
   const clearNoteError = useNoteStore((s) => s.clearError);
+  const resolvedTheme = useSettingsStore((s) => s.resolvedTheme);
+  const theme = useSettingsStore((s) => s.theme);
+
+  // Apply theme to document
+  useEffect(() => {
+    const resolved = resolvedTheme();
+    document.documentElement.setAttribute("data-theme", resolved);
+
+    // Listen for system theme changes when set to "system"
+    if (theme === "system") {
+      const mq = window.matchMedia("(prefers-color-scheme: dark)");
+      const handler = () => {
+        document.documentElement.setAttribute(
+          "data-theme",
+          mq.matches ? "dark" : "light",
+        );
+      };
+      mq.addEventListener("change", handler);
+      return () => mq.removeEventListener("change", handler);
+    }
+  }, [theme, resolvedTheme]);
 
   // Auto-load saved vault on startup
   useEffect(() => {
@@ -97,6 +120,8 @@ function App() {
           </div>
         </aside>
       </div>
+
+      <SettingsModal />
     </div>
   );
 }
