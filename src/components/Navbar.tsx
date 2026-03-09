@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { PanelLeft, PanelRight, Settings, FolderOpen } from "lucide-react";
+import { PanelLeft, PanelRight, Settings, FolderOpen, HelpCircle } from "lucide-react";
 import { useLayoutStore } from "@/store/layoutStore";
 import { useVaultStore } from "@/store/vaultStore";
 import { useSettingsStore } from "@/store/settingsStore";
@@ -9,18 +9,37 @@ export function Navbar() {
     useLayoutStore();
   const { vaultPath, openVault } = useVaultStore();
   const openSettings = useSettingsStore((s) => s.openSettings);
+  const openShortcuts = useSettingsStore((s) => s.openShortcuts);
 
-  // Global Cmd/Ctrl+, shortcut
+  // Global keyboard shortcuts
   useEffect(() => {
     function handleKey(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key === ",") {
         e.preventDefault();
         openSettings();
+        return;
+      }
+      // "?" key — only when not typing in an input or editor
+      if (
+        e.key === "?" &&
+        !e.metaKey &&
+        !e.ctrlKey &&
+        !e.altKey
+      ) {
+        const tag = (e.target as HTMLElement).tagName;
+        const isEditable =
+          tag === "INPUT" ||
+          tag === "TEXTAREA" ||
+          (e.target as HTMLElement).closest(".cm-editor") !== null;
+        if (!isEditable) {
+          e.preventDefault();
+          openShortcuts();
+        }
       }
     }
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
-  }, [openSettings]);
+  }, [openSettings, openShortcuts]);
 
   const vaultName = vaultPath?.split(/[\\/]/).pop() ?? "";
 
@@ -68,6 +87,13 @@ export function Navbar() {
           title="Toggle right panel"
         >
           <PanelRight size={18} />
+        </button>
+        <button
+          onClick={() => openShortcuts()}
+          className="rounded-md p-1.5 text-[var(--color-text-muted)] transition-colors hover:bg-[var(--color-bg-surface)] hover:text-[var(--color-text-secondary)]"
+          title="Keyboard shortcuts (?)"
+        >
+          <HelpCircle size={18} />
         </button>
         <button
           onClick={() => openSettings()}

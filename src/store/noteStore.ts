@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { toast } from "sonner";
 import { fs } from "@/utils/fs";
 import { useVaultStore } from "@/store/vaultStore";
 
@@ -9,7 +10,6 @@ interface NoteState {
   dirty: boolean;
   saving: boolean;
   searchQuery: string;
-  error: string | null;
 
   openNote: (path: string) => Promise<void>;
   updateContent: (content: string) => void;
@@ -23,7 +23,6 @@ interface NoteState {
   renameFolder: (oldPath: string, newName: string) => Promise<void>;
   moveFile: (sourcePath: string, destDir: string) => Promise<void>;
   setSearchQuery: (query: string) => void;
-  clearError: () => void;
   closeNote: () => void;
 }
 
@@ -46,7 +45,6 @@ export const useNoteStore = create<NoteState>((set, get) => ({
   dirty: false,
   saving: false,
   searchQuery: "",
-  error: null,
 
   openNote: async (path) => {
     // Auto-save current note if dirty
@@ -62,10 +60,9 @@ export const useNoteStore = create<NoteState>((set, get) => ({
         activeContent: content,
         activeTitle: fileNameFromPath(path),
         dirty: false,
-        error: null,
       });
     } catch (e) {
-      set({ error: `Failed to open note: ${e}` });
+      toast.error(`Failed to open note: ${e}`);
     }
   },
 
@@ -98,7 +95,8 @@ export const useNoteStore = create<NoteState>((set, get) => ({
       set({ activeFilePath: savePath, dirty: false, saving: false });
       useVaultStore.getState().refreshFiles();
     } catch (e) {
-      set({ error: `Failed to save: ${e}`, saving: false });
+      toast.error(`Failed to save: ${e}`);
+      set({ saving: false });
     }
   },
 
@@ -107,8 +105,9 @@ export const useNoteStore = create<NoteState>((set, get) => ({
       const newPath = await fs.createNote(name, dirPath);
       await useVaultStore.getState().refreshFiles();
       await get().openNote(newPath);
+      toast.success("Note created");
     } catch (e) {
-      set({ error: `Failed to create note: ${e}` });
+      toast.error(`Failed to create note: ${e}`);
     }
   },
 
@@ -120,8 +119,9 @@ export const useNoteStore = create<NoteState>((set, get) => ({
         set({ activeFilePath: null, activeContent: "", activeTitle: "", dirty: false });
       }
       useVaultStore.getState().refreshFiles();
+      toast.success("Note deleted");
     } catch (e) {
-      set({ error: `Failed to delete note: ${e}` });
+      toast.error(`Failed to delete note: ${e}`);
     }
   },
 
@@ -136,7 +136,7 @@ export const useNoteStore = create<NoteState>((set, get) => ({
       }
       useVaultStore.getState().refreshFiles();
     } catch (e) {
-      set({ error: `Failed to rename note: ${e}` });
+      toast.error(`Failed to rename note: ${e}`);
     }
   },
 
@@ -144,8 +144,9 @@ export const useNoteStore = create<NoteState>((set, get) => ({
     try {
       await fs.createFolder(path);
       useVaultStore.getState().refreshFiles();
+      toast.success("Folder created");
     } catch (e) {
-      set({ error: `Failed to create folder: ${e}` });
+      toast.error(`Failed to create folder: ${e}`);
     }
   },
 
@@ -153,8 +154,9 @@ export const useNoteStore = create<NoteState>((set, get) => ({
     try {
       await fs.deleteFolder(path);
       useVaultStore.getState().refreshFiles();
+      toast.success("Folder deleted");
     } catch (e) {
-      set({ error: `Failed to delete folder: ${e}` });
+      toast.error(`Failed to delete folder: ${e}`);
     }
   },
 
@@ -165,7 +167,7 @@ export const useNoteStore = create<NoteState>((set, get) => ({
       await fs.renameFolder(oldPath, newPath);
       useVaultStore.getState().refreshFiles();
     } catch (e) {
-      set({ error: `Failed to rename folder: ${e}` });
+      toast.error(`Failed to rename folder: ${e}`);
     }
   },
 
@@ -177,12 +179,12 @@ export const useNoteStore = create<NoteState>((set, get) => ({
         set({ activeFilePath: newPath, activeTitle: fileNameFromPath(newPath) });
       }
       useVaultStore.getState().refreshFiles();
+      toast.success("File moved");
     } catch (e) {
-      set({ error: `Failed to move file: ${e}` });
+      toast.error(`Failed to move file: ${e}`);
     }
   },
 
   setSearchQuery: (query) => set({ searchQuery: query }),
-  clearError: () => set({ error: null }),
   closeNote: () => set({ activeFilePath: null, activeContent: "", activeTitle: "", dirty: false }),
 }));

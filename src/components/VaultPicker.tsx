@@ -1,49 +1,58 @@
-import { FolderOpen, Plus } from "lucide-react";
+import { FolderOpen, Plus, Loader2 } from "lucide-react";
 import { useVaultStore } from "@/store/vaultStore";
 
 export function VaultPicker() {
-  const { openVault, loading, error, clearError } = useVaultStore();
+  const { openVault, loading } = useVaultStore();
 
   return (
-    <div className="flex h-screen w-screen flex-col items-center justify-center gap-6 bg-[var(--color-bg-primary)]">
-      <div className="text-center">
-        <h1 className="text-2xl font-bold text-[var(--color-accent)]">Luminote</h1>
-        <p className="mt-2 text-sm text-[var(--color-text-secondary)]">
-          Open a folder to use as your vault
-        </p>
-      </div>
-
-      {error && (
-        <div className="flex items-center gap-2 rounded-md border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-400">
-          <span>{error}</span>
-          <button onClick={clearError} className="ml-2 text-xs underline">
-            dismiss
-          </button>
+    <div className="flex h-screen w-screen flex-col items-center justify-center bg-[var(--color-bg-primary)]">
+      <div className="flex w-80 flex-col items-center gap-6 rounded-xl border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-8 shadow-lg">
+        {/* Logo area */}
+        <div className="flex flex-col items-center gap-1.5">
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[var(--color-accent)]/15">
+            <FolderOpen size={24} className="text-[var(--color-accent)]" />
+          </div>
+          <h1 className="text-xl font-bold text-[var(--color-accent)]">
+            Luminote
+          </h1>
+          <p className="text-[10px] text-[var(--color-text-muted)]">
+            v0.1.0
+          </p>
         </div>
-      )}
 
-      <button
-        onClick={openVault}
-        disabled={loading}
-        className="flex items-center gap-2 rounded-lg bg-[var(--color-accent)] px-6 py-3 text-sm font-medium text-[var(--color-bg-primary)] transition-colors hover:bg-[var(--color-accent-hover)] disabled:opacity-50"
-      >
-        <FolderOpen size={18} />
-        {loading ? "Opening..." : "Open Vault"}
-      </button>
+        <p className="text-center text-xs leading-relaxed text-[var(--color-text-secondary)]">
+          Open a folder to use as your vault. Your notes are stored locally as
+          Markdown files — no cloud, no accounts.
+        </p>
 
-      <button
-        onClick={openVault}
-        disabled={loading}
-        className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)] transition-colors hover:text-[var(--color-text-secondary)]"
-      >
-        <Plus size={14} />
-        Create new vault folder
-      </button>
+        {/* Open vault button */}
+        <button
+          onClick={openVault}
+          disabled={loading}
+          className="flex w-full items-center justify-center gap-2 rounded-lg bg-[var(--color-accent)] px-6 py-2.5 text-sm font-medium text-[var(--color-bg-primary)] transition-colors hover:bg-[var(--color-accent-hover)] disabled:opacity-50"
+        >
+          {loading ? (
+            <>
+              <Loader2 size={16} className="animate-spin" />
+              Opening...
+            </>
+          ) : (
+            <>
+              <FolderOpen size={16} />
+              Open Vault
+            </>
+          )}
+        </button>
 
-      <p className="max-w-xs text-center text-xs text-[var(--color-text-muted)]">
-        A vault is just a folder on your computer where your notes are stored as
-        Markdown files.
-      </p>
+        <button
+          onClick={openVault}
+          disabled={loading}
+          className="flex items-center gap-1.5 text-xs text-[var(--color-text-muted)] transition-colors hover:text-[var(--color-text-secondary)]"
+        >
+          <Plus size={14} />
+          Create new vault folder
+        </button>
+      </div>
     </div>
   );
 }

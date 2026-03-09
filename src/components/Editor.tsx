@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, type ReactNode } from "react";
+import { useState, useEffect, useRef, useMemo, memo, type ReactNode } from "react";
 import { Eye, Edit3, FileText } from "lucide-react";
 import Markdown from "react-markdown";
 import { useNoteStore } from "@/store/noteStore";
@@ -139,7 +139,7 @@ function processChildren(
 
 // ─── CodeMirror inner component ───
 
-function CodeMirrorEditor({
+const CodeMirrorEditor = memo(function CodeMirrorEditor({
   content,
   filePath,
   fileTree,
@@ -241,7 +241,7 @@ function CodeMirrorEditor({
   }, [filePath]);
 
   return <div ref={editorRef} className="h-full" />;
-}
+});
 
 // ─── Main Editor component ───
 

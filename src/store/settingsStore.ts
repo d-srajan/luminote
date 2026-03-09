@@ -20,6 +20,7 @@ interface SettingsState {
   // UI (not persisted)
   settingsOpen: boolean;
   settingsTab: SettingsTab;
+  shortcutsOpen: boolean;
 }
 
 interface SettingsActions {
@@ -32,6 +33,8 @@ interface SettingsActions {
   openSettings: (tab?: SettingsTab) => void;
   closeSettings: () => void;
   setSettingsTab: (tab: SettingsTab) => void;
+  openShortcuts: () => void;
+  closeShortcuts: () => void;
   resetSettings: () => void;
   resolvedTheme: () => "light" | "dark";
 }
@@ -70,6 +73,7 @@ export const useSettingsStore = create<SettingsStore>()(
       ...DEFAULTS,
       settingsOpen: false,
       settingsTab: "general" as SettingsTab,
+      shortcutsOpen: false,
 
       // Setters
       setTheme: (theme) => set({ theme }),
@@ -85,6 +89,8 @@ export const useSettingsStore = create<SettingsStore>()(
         set({ settingsOpen: true, ...(tab ? { settingsTab: tab } : {}) }),
       closeSettings: () => set({ settingsOpen: false }),
       setSettingsTab: (settingsTab) => set({ settingsTab }),
+      openShortcuts: () => set({ shortcutsOpen: true }),
+      closeShortcuts: () => set({ shortcutsOpen: false }),
 
       // Reset
       resetSettings: () => set({ ...DEFAULTS }),

@@ -13,7 +13,7 @@ import {
   Copy,
   X,
 } from "lucide-react";
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { useVaultStore } from "@/store/vaultStore";
 import { useNoteStore } from "@/store/noteStore";
 import { ContextMenu, type MenuItem } from "@/components/ContextMenu";
@@ -62,6 +62,13 @@ export function FileExplorer() {
   const [dragOverPath, setDragOverPath] = useState<string | null>(null);
   const navRef = useRef<HTMLElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+
+  // Debounced search
+  const [debouncedQuery, setDebouncedQuery] = useState(searchQuery);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedQuery(searchQuery), 150);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
 
   // ─── Global Cmd/Ctrl+P shortcut ───
   useEffect(() => {
@@ -199,7 +206,10 @@ export function FileExplorer() {
 
   // ─── Keyboard navigation ───
 
-  const filteredTree = filterTree(fileTree, searchQuery);
+  const filteredTree = useMemo(
+    () => filterTree(fileTree, debouncedQuery),
+    [fileTree, debouncedQuery],
+  );
   const visibleEntries = getVisibleEntries(filteredTree, openFolders);
 
   const handleKeyDown = useCallback(
@@ -388,9 +398,38 @@ export function FileExplorer() {
         onDrop={handleDropOnRoot}
       >
         {filteredTree.length === 0 && (
-          <p className="px-2 py-8 text-center text-xs text-[var(--color-text-muted)]">
-            {searchQuery ? "No matching notes." : "No notes yet.\nCreate one to get started!"}
-          </p>
+          <div className="flex flex-col items-center gap-2 px-4 py-10 text-center">
+            {debouncedQuery ? (
+              <>
+                <Search size={28} strokeWidth={1.2} className="text-[var(--color-text-muted)]" />
+                <p className="text-xs text-[var(--color-text-muted)]">
+                  No notes found matching{" "}
+                  <span className="font-medium text-[var(--color-text-secondary)]">
+                    "{debouncedQuery}"
+                  </span>
+                </p>
+              </>
+            ) : (
+              <>
+                <FolderOpen size={28} strokeWidth={1.2} className="text-[var(--color-text-muted)]" />
+                <div>
+                  <p className="text-xs font-medium text-[var(--color-text-secondary)]">
+                    No notes yet
+                  </p>
+                  <p className="mt-0.5 text-[10px] text-[var(--color-text-muted)]">
+                    Create your first note to get started!
+                  </p>
+                </div>
+                <button
+                  onClick={() => handleNewNote()}
+                  className="mt-1 flex items-center gap-1 rounded-md bg-[var(--color-accent)]/15 px-3 py-1.5 text-xs font-medium text-[var(--color-accent)] transition-colors hover:bg-[var(--color-accent)]/25"
+                >
+                  <FilePlus size={13} />
+                  New Note
+                </button>
+              </>
+            )}
+          </div>
         )}
 
         {filteredTree.map((entry) => (
@@ -402,7 +441,7 @@ export function FileExplorer() {
             renamingPath={renamingPath}
             openFolders={openFolders}
             dragOverPath={dragOverPath}
-            searchQuery={searchQuery}
+            searchQuery={debouncedQuery}
             onOpenNote={openNote}
             onToggleFolder={toggleFolder}
             onContextMenu={handleContextMenu}

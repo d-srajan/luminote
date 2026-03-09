@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { toast } from "sonner";
 import { fs } from "@/utils/fs";
 import type { FileEntry } from "@/types/note";
 
@@ -6,20 +7,17 @@ interface VaultStore {
   vaultPath: string | null;
   fileTree: FileEntry[];
   loading: boolean;
-  error: string | null;
 
   openVault: () => Promise<void>;
   loadVault: (path: string) => Promise<void>;
   refreshFiles: () => Promise<void>;
   closeVault: () => void;
-  clearError: () => void;
 }
 
 export const useVaultStore = create<VaultStore>((set, get) => ({
   vaultPath: null,
   fileTree: [],
   loading: false,
-  error: null,
 
   openVault: async () => {
     try {
@@ -28,17 +26,19 @@ export const useVaultStore = create<VaultStore>((set, get) => ({
         await get().loadVault(path);
       }
     } catch (e) {
-      set({ error: `Failed to open vault: ${e}` });
+      toast.error(`Failed to open vault: ${e}`);
     }
   },
 
   loadVault: async (path) => {
-    set({ loading: true, error: null });
+    set({ loading: true });
     try {
       const fileTree = await fs.listFiles(path);
       set({ vaultPath: path, fileTree, loading: false });
+      toast.success("Vault loaded");
     } catch (e) {
-      set({ error: `Failed to load vault: ${e}`, loading: false });
+      toast.error(`Failed to load vault: ${e}`);
+      set({ loading: false });
     }
   },
 
@@ -49,14 +49,12 @@ export const useVaultStore = create<VaultStore>((set, get) => ({
       const fileTree = await fs.listFiles(vaultPath);
       set({ fileTree });
     } catch (e) {
-      set({ error: `Failed to refresh files: ${e}` });
+      toast.error(`Failed to refresh files: ${e}`);
     }
   },
 
   closeVault: () => {
     fs.clearVaultPath();
-    set({ vaultPath: null, fileTree: [], error: null });
+    set({ vaultPath: null, fileTree: [] });
   },
-
-  clearError: () => set({ error: null }),
 }));
